@@ -1,0 +1,16 @@
+[package]
+name = "split-dns-resolver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = { version="*", features = ["max_level_debug", "release_max_level_warn"]  }
+env_logger = { version="*" }
+toml = { version="*" }
+serde = { version="*" }
+tokio = { version="*" }
+futures = { version="*" }
+hickory-client = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
+hickory-proto = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
+hickory-server = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
+hickory-resolver = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
