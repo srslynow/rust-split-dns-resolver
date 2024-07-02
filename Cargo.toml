@@ -14,3 +14,6 @@ hickory-client = { version = "*", default-features = false, features = ["dns-ove
 hickory-proto = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
 hickory-server = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
 hickory-resolver = { version = "*", default-features = false, features = ["dns-over-https-rustls"] }
+clap = { version = "4.5.8", features = ["env", "derive"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
