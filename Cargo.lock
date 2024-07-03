@@ -1108,6 +1108,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "ttlhashmap",
 ]
 
 [[package]]
@@ -1336,6 +1337,12 @@ dependencies = [
  "tracing-core",
  "tracing-log",
 ]
+
+[[package]]
+name = "ttlhashmap"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50ddd0e3ea228684ba88409bd2987421f96130063f68ae29c0ac322219be83f2"
 
 [[package]]
 name = "unicode-bidi"

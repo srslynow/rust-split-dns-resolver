@@ -1,11 +1,12 @@
-use std::error::Error;
+use std::{error::Error, net::SocketAddr};
 
 use clap::Parser;
 use tokio::net::UdpSocket;
-use tracing_subscriber::{prelude::*};
+use tracing_subscriber::prelude::*;
 
+pub mod dns_client;
+pub mod dns_server;
 pub mod parse_args;
-pub mod server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -27,13 +28,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let socket = UdpSocket::bind(&addr).await?;
     tracing::info!("Listening on: {}", socket.local_addr()?);
 
-    let server = server::Server {
-        socket,
-        buf: vec![0; 1024],
-        to_send: None,
-    };
+    const UPSTREAM_SERVERS: &[&str] = &[
+        "8.8.8.8:53",
+        "8.8.4.4:53",
+        "1.1.1.1:53",
+        "1.0.0.1:53",
+        "10.254.253.201:53",
+    ];
 
-    server.run().await?;
+    let upsteam_dns_socket_addresses: Vec<SocketAddr> = UPSTREAM_SERVERS
+        .iter()
+        .map(|server| server.parse().unwrap())
+        .collect();
+    let mut dns_server =
+        dns_server::DnsServer::new(upsteam_dns_socket_addresses, socket, vec![0; 1024]).await?;
+    dns_server.run().await?;
 
     Ok(())
 }

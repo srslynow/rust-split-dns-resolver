@@ -17,3 +17,4 @@ hickory-resolver = { version = "*", default-features = false, features = ["dns-o
 clap = { version = "4.5.8", features = ["env", "derive"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+ttlhashmap = "0.1.0"
