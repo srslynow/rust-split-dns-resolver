@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "8.8.4.4:53",
         "1.1.1.1:53",
         "1.0.0.1:53",
-        "10.254.253.201:53",
+        "192.168.50.2:53",
     ];
 
     let upsteam_dns_socket_addresses: Vec<SocketAddr> = UPSTREAM_SERVERS

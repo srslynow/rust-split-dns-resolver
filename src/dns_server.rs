@@ -40,7 +40,7 @@ impl DnsServer {
 
     pub async fn run(&mut self) -> Result<(), io::Error> {
         // hashmap which saves responses within ttl to cache
-        let ttl_dns_hashmap: TtlHashMap<Vec<u8>, Vec<u8>> =
+        let mut ttl_dns_hashmap: TtlHashMap<Vec<u8>, Vec<u8>> =
             TtlHashMap::new(Duration::from_secs(100));
         loop {
             if let Some((_size, peer)) = self.to_send {
@@ -56,28 +56,44 @@ impl DnsServer {
 
                 // Check if the query is in the cache
                 // TODO: Implement cache
+                // set the query id to zero and serialize the query message to bytes
+                let key = query_msg.clone().set_header(
+                    *query_msg
+                        .header()
+                        .clone()
+                        .set_id(0),
+                ).to_vec()?;
+                let cache_result = ttl_dns_hashmap.get(&key);
+                let results = match cache_result {
+                    Some(cache_result) => vec![Message::from_vec(cache_result)?],
+                    None => {
+                        tracing::info!("No result in cache, fetching fresh result");
+                        // Query the upstream servers asynchronously
+                        let futures = self.dns_clients.iter().map(|client| {
+                            let query_msg_clone = query_msg.clone();
+                            async move {
+                                let response = client.send_query(query_msg_clone).await;
+                                match response {
+                                    Some(response) => Some(response),
+                                    None => None,
+                                }
+                            }
+                        });
 
-                // Query the upstream servers asynchronously
-                let futures = self.dns_clients.iter().map(|client| {
-                    let query_msg_clone = query_msg.clone();
-                    async move {
-                        let response = client.send_query(query_msg_clone).await;
-                        match response {
-                            Some(response) => Some(response),
-                            None => None,
-                        }
+                        let results = futures::future::join_all(futures).await;
+                        let results = results
+                            .into_iter()
+                            .filter_map(|result| result)
+                            .collect::<Vec<Message>>();
+                        results
                     }
-                });
-
-                let results = futures::future::join_all(futures).await;
-                let results = results
-                    .into_iter()
-                    .filter_map(|result| result)
-                    .collect::<Vec<Message>>();
+                };
+                
 
                 // Check if any of the responses are valid
                 if results.len() > 0 {
                     let mut response_message = results[0].clone();
+                    ttl_dns_hashmap.insert(key, response_message.to_vec()?);
                     // tracing::info!("Received response from upstream servers: {:?}", results);
                     response_message.set_header(
                         *response_message
