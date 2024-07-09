@@ -33,15 +33,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "8.8.4.4:53",
         "1.1.1.1:53",
         "1.0.0.1:53",
-        "192.168.50.2:53",
+        // "192.168.3.18:53", // local DNS server (pihole)
+        // "192.168.50.2:53",
     ];
 
     let upsteam_dns_socket_addresses: Vec<SocketAddr> = UPSTREAM_SERVERS
         .iter()
         .map(|server| server.parse().unwrap())
         .collect();
-    let mut dns_server =
-        dns_server::DnsServer::new(upsteam_dns_socket_addresses, socket, vec![0; 1024]).await?;
+    let mut dns_server = dns_server::DnsServer::new(
+        args.ttl,
+        upsteam_dns_socket_addresses,
+        socket,
+        vec![0; 1024],
+    )
+    .await?;
     dns_server.run().await?;
 
     Ok(())

@@ -41,7 +41,11 @@ impl DnsClient {
         let response = self.client.send(query).next().await;
         // If the response was successful, return it
         if let Some(Ok(response)) = response {
-            tracing::info!("Received response from DNS server: {:?} and contains answer: {}", self.socket_addr, response.contains_answer());
+            tracing::info!(
+                "Received response from DNS server: {:?} and contains answer: {}",
+                self.socket_addr,
+                response.contains_answer()
+            );
             if response.contains_answer() {
                 return Some(response.into());
             }

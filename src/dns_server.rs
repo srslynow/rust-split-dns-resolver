@@ -3,6 +3,7 @@ use std::io;
 use std::net::SocketAddr;
 
 use hickory_client::op::Message;
+use hickory_proto::op::Query;
 use tokio::net::UdpSocket;
 use tokio::time::Duration;
 use ttlhashmap::TtlHashMap;
@@ -14,10 +15,12 @@ pub struct DnsServer {
     pub buf: Vec<u8>,
     pub to_send: Option<(usize, SocketAddr)>,
     pub dns_clients: Vec<DnsClient>,
+    pub ttl: u32,
 }
 
 impl DnsServer {
     pub async fn new(
+        ttl: u32,
         upstream_dns_servers: Vec<SocketAddr>,
         socket: UdpSocket,
         buf: Vec<u8>,
@@ -31,6 +34,7 @@ impl DnsServer {
         }
 
         Ok(Self {
+            ttl,
             socket,
             buf,
             to_send: None,
@@ -40,8 +44,8 @@ impl DnsServer {
 
     pub async fn run(&mut self) -> Result<(), io::Error> {
         // hashmap which saves responses within ttl to cache
-        let mut ttl_dns_hashmap: TtlHashMap<Vec<u8>, Vec<u8>> =
-            TtlHashMap::new(Duration::from_secs(100));
+        let mut ttl_dns_hashmap: TtlHashMap<Query, Vec<u8>> =
+            TtlHashMap::new(Duration::from_secs(self.ttl as u64));
         loop {
             if let Some((_size, peer)) = self.to_send {
                 let query_msg = match Message::from_vec(&self.buf) {
@@ -57,15 +61,17 @@ impl DnsServer {
                 // Check if the query is in the cache
                 // TODO: Implement cache
                 // set the query id to zero and serialize the query message to bytes
-                let key = query_msg.clone().set_header(
-                    *query_msg
-                        .header()
-                        .clone()
-                        .set_id(0),
-                ).to_vec()?;
-                let cache_result = ttl_dns_hashmap.get(&key);
+                let key = query_msg
+                    .clone()
+                    .set_header(*query_msg.header().clone().set_id(0))
+                    .to_vec()?;
+                let query = query_msg.query().unwrap();
+                let cache_result = ttl_dns_hashmap.get(&query);
                 let results = match cache_result {
-                    Some(cache_result) => vec![Message::from_vec(cache_result)?],
+                    Some(cache_result) => {
+                        tracing::info!("Found result in cache");
+                        vec![Message::from_vec(cache_result)?]
+                    }
                     None => {
                         tracing::info!("No result in cache, fetching fresh result");
                         // Query the upstream servers asynchronously
@@ -88,12 +94,11 @@ impl DnsServer {
                         results
                     }
                 };
-                
 
                 // Check if any of the responses are valid
                 if results.len() > 0 {
                     let mut response_message = results[0].clone();
-                    ttl_dns_hashmap.insert(key, response_message.to_vec()?);
+                    ttl_dns_hashmap.insert(query.clone(), response_message.to_vec()?);
                     // tracing::info!("Received response from upstream servers: {:?}", results);
                     response_message.set_header(
                         *response_message
