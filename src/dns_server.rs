@@ -61,10 +61,6 @@ impl DnsServer {
                 // Check if the query is in the cache
                 // TODO: Implement cache
                 // set the query id to zero and serialize the query message to bytes
-                let key = query_msg
-                    .clone()
-                    .set_header(*query_msg.header().clone().set_id(0))
-                    .to_vec()?;
                 let query = query_msg.query().unwrap();
                 let cache_result = ttl_dns_hashmap.get(&query);
                 let results = match cache_result {
