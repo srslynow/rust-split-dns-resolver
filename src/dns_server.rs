@@ -8,7 +8,7 @@ use tokio::net::UdpSocket;
 use tokio::time::Duration;
 use ttlhashmap::TtlHashMap;
 
-use crate::dns_client::DnsClient;
+use crate::dns_client::{DnsClient, DnsResponseType};
 
 pub struct DnsServer {
     pub socket: UdpSocket,
@@ -56,11 +56,9 @@ impl DnsServer {
                     }
                 };
 
-                tracing::info!("Query message: {}", query_msg.clone());
+                tracing::info!("Query message: {}", query_msg.query().unwrap());
 
                 // Check if the query is in the cache
-                // TODO: Implement cache
-                // set the query id to zero and serialize the query message to bytes
                 let query = query_msg.query().unwrap();
                 let cache_result = ttl_dns_hashmap.get(&query);
                 let results = match cache_result {
@@ -81,13 +79,10 @@ impl DnsServer {
                                 }
                             }
                         });
-
+                        // Wait for all the futures to complete
                         let results = futures::future::join_all(futures).await;
-                        let results = results
-                            .into_iter()
-                            .filter_map(|result| result)
-                            .collect::<Vec<Message>>();
-                        results
+                        // Parse the responses into Vec<Message>
+                        self.parse_dns_responses(results)
                     }
                 };
 
@@ -113,17 +108,53 @@ impl DnsServer {
                             query_msg.header().id()
                         );
                     } else {
-                        // failure to serialize response message
-                        // TODO: respond with no answer
                         tracing::error!("Failed to serialize response message");
                     }
                 } else {
                     // failure to get valid response from upstream servers
                     // TODO: respond with no answer
-                    tracing::error!("Failed to get valid response from upstream servers");
+                    tracing::error!("No usable response from upstream servers");
                 }
             }
             self.to_send = Some(self.socket.recv_from(&mut self.buf).await?);
+        }
+    }
+
+    /// Parse the DNS responses and return a Vec<Message>
+    pub fn parse_dns_responses(
+        &self,
+        results: Vec<Option<(Message, DnsResponseType)>>,
+    ) -> Vec<Message> {
+        // Filter the results to Vec<(Message, DnsResponseType)>
+        let dns_message_type_tuple = results
+            .into_iter()
+            .filter_map(|result| result)
+            .collect::<Vec<(Message, DnsResponseType)>>();
+
+        // Filter the results to only DNS messages with an address
+        let dns_message_with_addr = dns_message_type_tuple
+            .iter()
+            .filter(|(_, response_type)| {
+                if let DnsResponseType::ResponseWithAddr = response_type {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(|result| result.0.clone())
+            .collect::<Vec<Message>>();
+        // If there are any DNS messages with address, return them
+        if dns_message_with_addr.len() > 0 {
+            dns_message_with_addr
+        } else {
+            // If there are no responses with address, return all DNS Messages
+            // (first DNS response without address is returned to the client)
+            tracing::info!("No response with address found");
+            let dns_message_without_addr = dns_message_type_tuple
+                .iter()
+                .map(|(message, _)| message.clone())
+                .collect::<Vec<Message>>();
+            dns_message_without_addr
         }
     }
 }

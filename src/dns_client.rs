@@ -12,6 +12,11 @@ pub struct DnsClient {
     client: AsyncClient,
 }
 
+pub enum DnsResponseType {
+    ResponseWithAddr,
+    ResponseWithoutAddr,
+}
+
 impl DnsClient {
     /// Create a new DNS client with a single upstream server
     pub async fn new(socket_addr: SocketAddr) -> Option<Self> {
@@ -36,7 +41,7 @@ impl DnsClient {
     }
 
     /// Send a query to the DNS server
-    pub async fn send_query(&self, query: Message) -> Option<Message> {
+    pub async fn send_query(&self, query: Message) -> Option<(Message, DnsResponseType)> {
         // Send the query to the DNS server and await the response
         let response = self.client.send(query).next().await;
         // If the response was successful, return it
@@ -47,7 +52,9 @@ impl DnsClient {
                 response.contains_answer()
             );
             if response.contains_answer() {
-                return Some(response.into());
+                return Some((response.into(), DnsResponseType::ResponseWithAddr));
+            } else {
+                return Some((response.into(), DnsResponseType::ResponseWithoutAddr));
             }
         } else {
             tracing::error!("Failed to send query to DNS server: {}", self.socket_addr);
